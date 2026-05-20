@@ -6,6 +6,8 @@ import Deal from './models/Deal.js';
 import User from './models/User.js';
 import Crop from './models/Crop.js';
 import SupportTicket from './models/SupportTicket.js';
+import SosAlert from './models/SosAlert.js';
+import SoilHealth from './models/SoilHealth.js';
 
 // Load environment variables
 dotenv.config();
@@ -488,6 +490,202 @@ app.post('/api/tickets', async (req, res) => {
   } catch (error) {
     console.error('Error saving ticket:', error.message);
     res.status(500).json({ error: 'Internal Server Error while saving support ticket: ' + error.message });
+  }
+});
+
+// POST Endpoint to log SOS Emergency Alerts
+app.post('/api/sos', async (req, res) => {
+  try {
+    const { farmerName, farmerPhone, locationName, latitude, longitude } = req.body;
+
+    if (!farmerName || !farmerPhone || !locationName || !latitude || !longitude) {
+      return res.status(400).json({ error: 'All fields (farmerName, farmerPhone, locationName, latitude, longitude) are required' });
+    }
+
+    const newSos = new SosAlert({
+      farmerName,
+      farmerPhone,
+      locationName,
+      latitude: Number(latitude),
+      longitude: Number(longitude),
+      status: 'Active'
+    });
+
+    await newSos.save();
+    console.log(`🚨 SOS Emergency registered! Farmer: ${farmerName} (${farmerPhone}) at ${locationName} (${latitude}, ${longitude})`);
+
+    res.status(201).json({
+      success: true,
+      message: 'SOS Emergency logged successfully! Disaster response and local coordinates saved.',
+      sos: newSos
+    });
+  } catch (error) {
+    console.error('Error logging SOS alert:', error.message);
+    res.status(500).json({ error: 'Internal Server Error while saving SOS alert: ' + error.message });
+  }
+});
+
+// GET Endpoint to retrieve crop recommendations history
+app.get('/api/crop-suggestions', async (req, res) => {
+  try {
+    const { phone } = req.query;
+    if (!phone) {
+      return res.status(400).json({ error: 'phone parameter is required' });
+    }
+    const history = await SoilHealth.find({ farmerPhone: phone }).sort({ createdAt: -1 });
+    res.json(history);
+  } catch (error) {
+    console.error('Error fetching crop suggestions history:', error.message);
+    res.status(500).json({ error: 'Internal Server Error while fetching history: ' + error.message });
+  }
+});
+
+// POST Endpoint to generate new AI Crop Suggestions
+app.post('/api/crop-suggestions', async (req, res) => {
+  try {
+    const { farmerPhone, soilType, waterLevel, season } = req.body;
+
+    if (!farmerPhone || !soilType || !waterLevel || !season) {
+      return res.status(400).json({ error: 'farmerPhone, soilType, waterLevel, and season are required fields' });
+    }
+
+    // High-fidelity prompt for LLMs
+    const systemPrompt = `You are KrishiMitra AI, an expert agricultural consultant.
+Recommend the top 2 best crops for an Indian farmer with:
+- Soil Type: ${soilType}
+- Water Availability: ${waterLevel}
+- Sowing Season: ${season}
+
+Provide your response in a highly structured, beautiful format (Hindi or simple Hinglish/English).
+- State the 2 crops clearly with match percentage.
+- Explain "Why this suggestion" based on ${soilType} and water level (${waterLevel}).
+- Provide sowing details and expected Mandi rates in INR.
+Keep your response concise, clear, and extremely practical. Use bold headers and markdown bullets.`;
+
+    let generatedText = "";
+    const groqKey = process.env.GROK_API_KEY;
+    const geminiKey = process.env.AI_API_KEY;
+
+    const isGrokActive = groqKey && groqKey !== 'your_xai_grok_api_key_here' && groqKey.trim() !== '';
+    const isGeminiActive = geminiKey && geminiKey !== 'your_gemini_or_openai_api_key_here' && geminiKey.trim() !== '';
+
+    // Attempt Grok API call
+    if (isGrokActive) {
+      try {
+        const gRes = await fetchWithTimeout("https://api.x.ai/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${groqKey}`
+          },
+          body: JSON.stringify({
+            messages: [{ role: "user", content: systemPrompt }],
+            model: "grok-2",
+            stream: false
+          }),
+          timeout: 6000
+        });
+
+        if (gRes.ok) {
+          const data = await gRes.json();
+          generatedText = data?.choices?.[0]?.message?.content || "";
+        }
+      } catch (err) {
+        console.warn("Grok timed out in crop suggestions:", err.message);
+      }
+    }
+
+    // Failover to Gemini API call
+    if (!generatedText && isGeminiActive) {
+      try {
+        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`;
+        const gRes = await fetchWithTimeout(geminiUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: systemPrompt }] }]
+          }),
+          timeout: 6000
+        });
+
+        if (gRes.ok) {
+          const data = await gRes.json();
+          generatedText = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+        }
+      } catch (err) {
+        console.warn("Gemini timed out in crop suggestions:", err.message);
+      }
+    }
+
+    // Expert Local Fallback Database in case both AI routes fail or are not configured
+    if (!generatedText) {
+      console.warn("AI models not configured or failed. Fetching expert agricultural local database response for crop suggestions.");
+      const matchKey = `${soilType}-${waterLevel}-${season}`;
+      
+      const localSuggestions = {
+        'Black Soil-Medium-Rabi': `🌱 **Mustard (Sarson) & Chickpea (Chana)**
+  
+### 1. Mustard (Sarson) - 88% Match
+* **Why:** Black soil retains winter moisture well, and medium water source is perfect for mustard growth.
+* **Sowing Period:** October to November.
+* **Estimated Mandi Rate:** ₹5,400 - ₹5,600 per quintal.
+  
+### 2. Chickpea (Chana) - 82% Match
+* **Why:** Excellent nitrogen fixation capability and high return on low irrigation.
+* **Estimated Mandi Rate:** ₹5,700 - ₹5,900 per quintal.`,
+        
+        'Clayey-High-Kharif': `🌾 **Rice (Dhan) & Sugarcane (Ganna)**
+  
+### 1. Rice (Dhan) - 90% Match
+* **Why:** Clayey soil holds water exceptionally well, making it perfect for water-intensive transplanting.
+* **Sowing Period:** June to July.
+* **Estimated Mandi Rate:** ₹2,100 - ₹2,300 per quintal.
+  
+### 2. Sugarcane (Ganna) - 80% Match
+* **Why:** Massive yields under clayey structures and abundant moisture.`,
+  
+        'Loamy-Medium-Rabi': `🌾 **Wheat (Gehu) & Barley (Jau)**
+  
+### 1. Wheat (Gehu) - 92% Match
+* **Why:** Loamy soil is highly fertile, well-draining, and rich in nutrients, perfect for standard wheat crops.
+* **Sowing Period:** November to December.
+* **Estimated Mandi Rate:** ₹2,300 - ₹2,450 per quintal.
+  
+### 2. Barley (Jau) - 78% Match
+* **Why:** Fast maturity and low disease susceptibility in medium watering.`
+      };
+
+      generatedText = localSuggestions[matchKey] || `🌾 **Mustard (Sarson) & Wheat (Gehu) Recommendations**
+
+### 1. Mustard (Sarson) - 85% Match
+* **Why:** Highly resistant crop suitable for your dry soil parameters (${soilType}) and water availability (${waterLevel}).
+* **Sowing Period:** October - November.
+* **Estimated Mandi Rate:** ₹5,420 per quintal.
+
+### 2. Wheat (Gehu) - 75% Match
+* **Why:** Good fit for modern sowing practices in the ${season} season.`;
+    }
+
+    // Save recommendation to database
+    const newRecommendation = new SoilHealth({
+      farmerPhone,
+      soilType,
+      waterLevel,
+      season,
+      recommendation: generatedText
+    });
+
+    await newRecommendation.save();
+    console.log(`🌾 Crop Suggestion generated and saved for farmer: ${farmerPhone}`);
+
+    res.status(201).json({
+      success: true,
+      recommendation: generatedText,
+      data: newRecommendation
+    });
+  } catch (error) {
+    console.error('Error in crop suggestions:', error.message);
+    res.status(500).json({ error: 'Internal Server Error during crop recommendation: ' + error.message });
   }
 });
 
