@@ -8,16 +8,33 @@ export default function Register() {
   const [password, setPassword] = useState('');
   const navigate = useNavigate();
 
-  const handleRegister = (e) => {
+  const handleRegister = async (e) => {
     e.preventDefault();
-    if (name && phone && password) {
-      localStorage.setItem('registeredName', name);
-      localStorage.setItem('registeredPhone', phone);
-      localStorage.setItem('registeredPassword', password);
-      // After register, redirect to login
-      navigate('/login');
-    } else {
+    if (!name || !phone || !password) {
       alert("Please fill all details");
+      return;
+    }
+
+    try {
+      const response = await fetch('http://localhost:5000/api/auth/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ name, phone, password })
+      });
+
+      const data = await response.json();
+      if (response.ok && data.success) {
+        alert('Registration Successful! Please login.');
+        // After register, redirect to login
+        navigate('/login');
+      } else {
+        alert(data.error || 'Registration failed');
+      }
+    } catch (error) {
+      console.error('Registration error:', error);
+      alert('Failed to connect to the server. Please ensure the backend is running.');
     }
   };
 

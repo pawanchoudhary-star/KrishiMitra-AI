@@ -7,20 +7,34 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const navigate = useNavigate();
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
-    const regPhone = localStorage.getItem('registeredPhone');
-    const regPass = localStorage.getItem('registeredPassword');
-    
-    // For prototype purpose, if no registered user, just let them in with whatever
-    if (!regPhone || (phone === regPhone && password === regPass)) {
-      localStorage.setItem('isLoggedIn', 'true');
-      if (phone !== regPhone && !regPhone) {
-         localStorage.setItem('registeredName', 'Farmer');
+    if (!phone || !password) {
+      alert("Please enter phone and password");
+      return;
+    }
+
+    try {
+      const response = await fetch('http://localhost:5000/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ phone, password })
+      });
+
+      const data = await response.json();
+      if (response.ok && data.success) {
+        localStorage.setItem('isLoggedIn', 'true');
+        localStorage.setItem('registeredName', data.user.name);
+        localStorage.setItem('registeredPhone', data.user.phone);
+        navigate('/');
+      } else {
+        alert(data.error || "Invalid phone number or password!");
       }
-      navigate('/');
-    } else {
-      alert("Invalid phone number or password!");
+    } catch (error) {
+      console.error('Login error:', error);
+      alert('Failed to connect to the server. Please ensure the backend is running.');
     }
   };
 

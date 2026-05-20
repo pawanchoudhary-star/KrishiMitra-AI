@@ -2,6 +2,8 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import mongoose from 'mongoose';
+import Deal from './models/Deal.js';
+import User from './models/User.js';
 
 // Load environment variables
 dotenv.config();
@@ -261,24 +263,72 @@ Your goal is to provide extremely accurate, practical, and highly correct advice
   }
 });
 
-// Define Deal Schema and Model for Direct Buyer Deals
-const dealSchema = new mongoose.Schema({
-  cropName: { type: String, required: true },
-  quantity: { type: Number, required: true },
-  unit: { type: String, default: 'Kg' },
-  pricePerQuintal: { type: Number, required: true },
-  totalPrice: { type: Number, required: true },
-  buyerName: { type: String, required: true, default: 'ITC e-Choupal' },
-  farmerName: { type: String, required: true },
-  farmerPhone: { type: String, required: true },
-  paymentMethod: { type: String, required: true }, // UPI, Bank Transfer
-  paymentDetails: { type: String, required: true }, // UPI ID or Account Number
-  cropPhoto: { type: String }, // Base64 image payload
-  status: { type: String, default: 'Pending Verification' },
-  createdAt: { type: Date, default: Date.now }
+// User Auth - Register Endpoint
+app.post('/api/auth/register', async (req, res) => {
+  try {
+    const { name, phone, password } = req.body;
+
+    if (!name || !phone || !password) {
+      return res.status(400).json({ error: 'All fields (name, phone, password) are required' });
+    }
+
+    // Check if user already exists
+    const existingUser = await User.findOne({ phone });
+    if (existingUser) {
+      return res.status(400).json({ error: 'User with this phone number already exists' });
+    }
+
+    const newUser = new User({
+      name,
+      phone,
+      password
+    });
+
+    await newUser.save();
+    console.log(`👤 New user registered successfully: ${name} (${phone})`);
+
+    res.status(201).json({
+      success: true,
+      message: 'Registration successful!',
+      user: { name: newUser.name, phone: newUser.phone }
+    });
+  } catch (error) {
+    console.error('Registration error:', error.message);
+    res.status(500).json({ error: 'Server error during registration: ' + error.message });
+  }
 });
 
-const Deal = mongoose.model('Deal', dealSchema);
+// User Auth - Login Endpoint
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { phone, password } = req.body;
+
+    if (!phone || !password) {
+      return res.status(400).json({ error: 'Phone number and password are required' });
+    }
+
+    const user = await User.findOne({ phone });
+    if (!user) {
+      return res.status(400).json({ error: 'Invalid phone number or password' });
+    }
+
+    // Validate password
+    if (user.password !== password) {
+      return res.status(400).json({ error: 'Invalid phone number or password' });
+    }
+
+    console.log(`🔓 User logged in successfully: ${user.name} (${phone})`);
+
+    res.json({
+      success: true,
+      message: 'Login successful!',
+      user: { name: user.name, phone: user.phone }
+    });
+  } catch (error) {
+    console.error('Login error:', error.message);
+    res.status(500).json({ error: 'Server error during login: ' + error.message });
+  }
+});
 
 // POST Endpoint to save a new Direct Buyer Deal
 app.post('/api/deals', async (req, res) => {
