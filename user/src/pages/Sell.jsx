@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { TrendingUp, TrendingDown, Store, ArrowRight, ShieldCheck, Calculator } from 'lucide-react';
+import { TrendingUp, TrendingDown, Store, ArrowRight, ShieldCheck, Calculator, Camera, X } from 'lucide-react';
 import PageTransition from '../components/PageTransition';
 
 const cropPrices = {
@@ -38,6 +38,7 @@ const cropPrices = {
 export default function Sell() {
   const [quantity, setQuantity] = useState(10); // default 10 kg
   const [crop, setCrop] = useState('Wheat');
+  const [cropImage, setCropImage] = useState(null);
 
   const mandis = cropPrices[crop] || cropPrices['Wheat'];
 
@@ -46,6 +47,17 @@ export default function Sell() {
     const pricePerKg = base / 100;
     const total = pricePerKg * quantity;
     return `₹${total.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
+  };
+
+  const handleImageUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setCropImage(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   return (
@@ -72,7 +84,7 @@ export default function Sell() {
       </div>
 
       <h3 className="text-h3" style={{ marginBottom: '16px' }}>Calculate Price</h3>
-      <div className="glass" style={{ padding: '16px', marginBottom: '24px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+      <div className="glass" style={{ padding: '16px', marginBottom: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
         <label className="text-sm" style={{ fontWeight: 'bold' }}>I have (मेरे पास है):</label>
         <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
           <input 
@@ -95,6 +107,95 @@ export default function Sell() {
             <option value="Guar">Guar (Cluster Bean)</option>
             <option value="Soyabean">Soyabean</option>
           </select>
+        </div>
+
+        {/* Photo Upload Section */}
+        <div style={{ borderTop: '1px solid var(--glass-border)', paddingTop: '16px' }}>
+          <label className="text-sm" style={{ fontWeight: 'bold', display: 'block', marginBottom: '8px' }}>
+            Crop Photo (फसल की फोटो अपलोड करें):
+          </label>
+          <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+            <input 
+              type="file" 
+              id="crop-photo-input" 
+              accept="image/*" 
+              onChange={handleImageUpload} 
+              style={{ display: 'none' }}
+            />
+            
+            {!cropImage ? (
+              <label 
+                htmlFor="crop-photo-input"
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: '100%',
+                  minHeight: '120px',
+                  border: '2px dashed var(--primary-green)',
+                  borderRadius: '16px',
+                  background: 'rgba(16, 185, 129, 0.05)',
+                  cursor: 'pointer',
+                  transition: 'all 0.3s ease',
+                  gap: '8px'
+                }}
+              >
+                <Camera size={32} style={{ color: 'var(--primary-green)' }} />
+                <span className="text-sm" style={{ fontWeight: '600', color: 'var(--primary-green)' }}>
+                  Upload Crop Photo (फोटो अपलोड करें)
+                </span>
+                <span style={{ fontSize: '11px', color: 'var(--text-color-secondary)', opacity: 0.8 }}>
+                  Supports JPG, PNG (Max 5MB)
+                </span>
+              </label>
+            ) : (
+              <div style={{ position: 'relative', width: '100%', borderRadius: '16px', overflow: 'hidden', border: '1px solid var(--glass-border)' }}>
+                <img 
+                  src={cropImage} 
+                  alt="Crop Preview" 
+                  style={{ width: '100%', maxHeight: '200px', objectFit: 'cover', display: 'block' }}
+                />
+                <button 
+                  onClick={() => setCropImage(null)}
+                  style={{
+                    position: 'absolute',
+                    top: '12px',
+                    right: '12px',
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: '50%',
+                    background: 'rgba(239, 68, 68, 0.9)',
+                    border: 'none',
+                    color: 'white',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.2)'
+                  }}
+                >
+                  <X size={16} />
+                </button>
+                <div style={{
+                  position: 'absolute',
+                  bottom: '0',
+                  left: '0',
+                  right: '0',
+                  background: 'rgba(0,0,0,0.6)',
+                  color: 'white',
+                  padding: '8px 12px',
+                  fontSize: '12px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}>
+                  <ShieldCheck size={14} style={{ color: '#10b981' }} />
+                  Photo Uploaded Successfully!
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
