@@ -1,0 +1,17 @@
+{
+  "name": "krishimitra-ai-monorepo",
+  "version": "1.0.0",
+  "description": "KrishiMitra AI - Fullstack Agricultural Decision Assistant",
+  "main": "server/server.js",
+  "scripts": {
+    "install-backend": "npm install --prefix server",
+    "install-frontend": "npm install --prefix user",
+    "install-all": "npm run install-backend && npm run install-frontend",
+    "build-frontend": "npm run build --prefix user",
+    "build": "npm run install-all && npm run build-frontend",
+    "start": "node server/server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}

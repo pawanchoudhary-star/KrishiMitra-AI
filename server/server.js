@@ -1167,6 +1167,20 @@ app.post('/api/schemes', async (req, res) => {
     res.status(500).json({ error: 'Internal Server Error while adding scheme: ' + error.message });
   }
 });
+// Serve static frontend assets in production
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Serve static assets from Vite's build folder
+app.use(express.static(path.join(__dirname, '../user/dist')));
+
+// Serve index.html for any other requests (React Router fallback)
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '../user/dist/index.html'));
+});
 
 // Start Server
 app.listen(PORT, () => {
