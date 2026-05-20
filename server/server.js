@@ -2,6 +2,8 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import mongoose from 'mongoose';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import Deal from './models/Deal.js';
 import User from './models/User.js';
 import Crop from './models/Crop.js';
@@ -11,6 +13,9 @@ import SoilHealth from './models/SoilHealth.js';
 import ScanHistory from './models/ScanHistory.js';
 import CropTask from './models/CropTask.js';
 import Scheme from './models/Scheme.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Load environment variables
 dotenv.config();
@@ -1167,17 +1172,11 @@ app.post('/api/schemes', async (req, res) => {
     res.status(500).json({ error: 'Internal Server Error while adding scheme: ' + error.message });
   }
 });
-// Serve static frontend assets in production
-import path from 'path';
-import { fileURLToPath } from 'url';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-// Serve static assets from Vite's build folder
+// Serve static frontend assets in production (must be AFTER all API routes)
 app.use(express.static(path.join(__dirname, '../user/dist')));
 
-// Serve index.html for any other requests (React Router fallback)
+// Serve index.html for all non-API routes (React Router SPA fallback)
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '../user/dist/index.html'));
 });
