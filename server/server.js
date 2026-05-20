@@ -26,7 +26,8 @@ const PORT = process.env.PORT || 5000;
 
 // Middleware
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
 // Helper function to fetch with a timeout using AbortController
 async function fetchWithTimeout(resource, options = {}) {
@@ -257,6 +258,86 @@ Your goal is to provide extremely accurate, practical, and highly correct advice
   } catch (error) {
     console.error("Backend Proxy Chat Error:", error.message);
     res.status(500).json({ error: error.message || 'Internal Server Error' });
+  }
+});
+
+// Define Deal Schema and Model for Direct Buyer Deals
+const dealSchema = new mongoose.Schema({
+  cropName: { type: String, required: true },
+  quantity: { type: Number, required: true },
+  unit: { type: String, default: 'Kg' },
+  pricePerQuintal: { type: Number, required: true },
+  totalPrice: { type: Number, required: true },
+  buyerName: { type: String, required: true, default: 'ITC e-Choupal' },
+  farmerName: { type: String, required: true },
+  farmerPhone: { type: String, required: true },
+  paymentMethod: { type: String, required: true }, // UPI, Bank Transfer
+  paymentDetails: { type: String, required: true }, // UPI ID or Account Number
+  cropPhoto: { type: String }, // Base64 image payload
+  status: { type: String, default: 'Pending Verification' },
+  createdAt: { type: Date, default: Date.now }
+});
+
+const Deal = mongoose.model('Deal', dealSchema);
+
+// POST Endpoint to save a new Direct Buyer Deal
+app.post('/api/deals', async (req, res) => {
+  try {
+    const {
+      cropName,
+      quantity,
+      pricePerQuintal,
+      totalPrice,
+      buyerName,
+      farmerName,
+      farmerPhone,
+      paymentMethod,
+      paymentDetails,
+      cropPhoto
+    } = req.body;
+
+    // Simple validation
+    if (!cropName || !quantity || !totalPrice || !farmerName || !farmerPhone || !paymentDetails) {
+      return res.status(400).json({ error: 'All required fields (cropName, quantity, totalPrice, farmerName, farmerPhone, paymentDetails) must be filled' });
+    }
+
+    const newDeal = new Deal({
+      cropName,
+      quantity,
+      pricePerQuintal,
+      totalPrice,
+      buyerName: buyerName || 'ITC e-Choupal',
+      farmerName,
+      farmerPhone,
+      paymentMethod: paymentMethod || 'UPI',
+      paymentDetails,
+      cropPhoto,
+      status: 'Pending Verification'
+    });
+
+    await newDeal.save();
+    console.log(`✅ New Deal saved successfully! ID: ${newDeal._id}, Farmer: ${farmerName}, Crop: ${cropName}`);
+
+    res.status(201).json({
+      success: true,
+      message: 'Deal submitted successfully! Our representative will contact you within 24 hours.',
+      dealId: newDeal._id,
+      deal: newDeal
+    });
+  } catch (error) {
+    console.error('Error saving deal:', error.message);
+    res.status(500).json({ error: 'Internal Server Error while saving deal: ' + error.message });
+  }
+});
+
+// GET Endpoint to retrieve recent deals
+app.get('/api/deals', async (req, res) => {
+  try {
+    const deals = await Deal.find().sort({ createdAt: -1 }).limit(10);
+    res.json(deals);
+  } catch (error) {
+    console.error('Error fetching deals:', error.message);
+    res.status(500).json({ error: 'Internal Server Error while fetching deals: ' + error.message });
   }
 });
 
