@@ -4,6 +4,8 @@ import dotenv from 'dotenv';
 import mongoose from 'mongoose';
 import Deal from './models/Deal.js';
 import User from './models/User.js';
+import Crop from './models/Crop.js';
+import SupportTicket from './models/SupportTicket.js';
 
 // Load environment variables
 dotenv.config();
@@ -388,6 +390,104 @@ app.get('/api/deals', async (req, res) => {
   } catch (error) {
     console.error('Error fetching deals:', error.message);
     res.status(500).json({ error: 'Internal Server Error while fetching deals: ' + error.message });
+  }
+});
+
+// GET Endpoint to retrieve crops for a specific farmer
+app.get('/api/crops', async (req, res) => {
+  try {
+    const { phone } = req.query;
+    if (!phone) {
+      return res.status(400).json({ error: 'phone query parameter is required' });
+    }
+    const crops = await Crop.find({ farmerPhone: phone }).sort({ sowingDate: -1 });
+    res.json(crops);
+  } catch (error) {
+    console.error('Error fetching crops:', error.message);
+    res.status(500).json({ error: 'Internal Server Error while fetching crops: ' + error.message });
+  }
+});
+
+// POST Endpoint to save a new Crop entry
+app.post('/api/crops', async (req, res) => {
+  try {
+    const { cropName, sowingDate, area, healthStatus, farmerPhone } = req.body;
+
+    if (!cropName || !sowingDate || !area || !farmerPhone) {
+      return res.status(400).json({ error: 'cropName, sowingDate, area, and farmerPhone are required fields' });
+    }
+
+    const newCrop = new Crop({
+      cropName,
+      sowingDate,
+      area: Number(area),
+      healthStatus: healthStatus || 'Healthy',
+      farmerPhone
+    });
+
+    await newCrop.save();
+    console.log(`🌾 New Crop saved: ${cropName} for farmer: ${farmerPhone}`);
+
+    res.status(201).json({
+      success: true,
+      message: 'Crop added successfully!',
+      crop: newCrop
+    });
+  } catch (error) {
+    console.error('Error saving crop:', error.message);
+    res.status(500).json({ error: 'Internal Server Error while saving crop: ' + error.message });
+  }
+});
+
+// DELETE Endpoint to remove/harvest a Crop entry
+app.delete('/api/crops/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const deletedCrop = await Crop.findByIdAndDelete(id);
+    
+    if (!deletedCrop) {
+      return res.status(404).json({ error: 'Crop entry not found' });
+    }
+
+    console.log(`🗑️ Crop entry deleted: ${deletedCrop.cropName} (ID: ${id})`);
+    res.json({
+      success: true,
+      message: 'Crop entry harvested/removed successfully!'
+    });
+  } catch (error) {
+    console.error('Error deleting crop:', error.message);
+    res.status(500).json({ error: 'Internal Server Error while deleting crop: ' + error.message });
+  }
+});
+
+// POST Endpoint to log support queries (Support Tickets)
+app.post('/api/tickets', async (req, res) => {
+  try {
+    const { farmerName, farmerPhone, category, description } = req.body;
+
+    if (!farmerName || !farmerPhone || !category || !description) {
+      return res.status(400).json({ error: 'All fields (farmerName, farmerPhone, category, description) are required' });
+    }
+
+    const newTicket = new SupportTicket({
+      farmerName,
+      farmerPhone,
+      category,
+      description,
+      status: 'Open'
+    });
+
+    await newTicket.save();
+    console.log(`🎫 New Support Ticket filed: Category: ${category} by Farmer: ${farmerName} (${farmerPhone})`);
+
+    res.status(201).json({
+      success: true,
+      message: 'Support ticket submitted successfully!',
+      ticket: newTicket
+    });
+  } catch (error) {
+    console.error('Error saving ticket:', error.message);
+    res.status(500).json({ error: 'Internal Server Error while saving support ticket: ' + error.message });
   }
 });
 
