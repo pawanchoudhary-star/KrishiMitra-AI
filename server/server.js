@@ -10,16 +10,108 @@ import SosAlert from './models/SosAlert.js';
 import SoilHealth from './models/SoilHealth.js';
 import ScanHistory from './models/ScanHistory.js';
 import CropTask from './models/CropTask.js';
+import Scheme from './models/Scheme.js';
 
 // Load environment variables
 dotenv.config();
 
 // Connect to MongoDB
 const MONGODB_URI = process.env.MONGODB_URI;
+// Seed Indian Agricultural Government Schemes
+async function seedSchemes() {
+  try {
+    const count = await Scheme.countDocuments();
+    if (count === 0) {
+      console.log('🌱 Seeding central government agriculture schemes into MongoDB...');
+      const defaultSchemes = [
+        {
+          title: "PM Kisan Samman Nidhi",
+          titleHindi: "प्रधानमंत्री किसान सम्मान निधि",
+          description: "An initiative by the Government of India that provides up to ₹6,000 per year in three equal installments directly into the bank accounts of small and marginal farmers.",
+          descriptionHindi: "भारत सरकार की एक पहल जिसके तहत छोटे और सीमांत किसानों के बैंक खातों में सीधे तीन समान किश्तों में प्रति वर्ष ₹6,000 तक की वित्तीय सहायता प्रदान की जाती है।",
+          benefits: "₹6,000 per year directly to bank account",
+          benefitsHindi: "₹6,000 प्रति वर्ष सीधे बैंक खाते में",
+          category: "Financial",
+          categoryHindi: "वित्तीय सहायता",
+          minLandAcres: 0.1,
+          maxLandAcres: 5.0,
+          eligibleCrops: [],
+          url: "https://pmkisan.gov.in/"
+        },
+        {
+          title: "PM Fasal Bima Yojana (PMFBY)",
+          titleHindi: "प्रधानमंत्री फसल बीमा योजना",
+          description: "A government-sponsored crop insurance scheme that integrates multiple stakeholders to provide comprehensive insurance cover against crop failure, helping stabilize farmer income.",
+          descriptionHindi: "सरकार द्वारा प्रायोजित एक फसल बीमा योजना जो फसल खराब होने के खिलाफ व्यापक बीमा कवर प्रदान करती है, जिससे किसानों की आय को स्थिर करने में मदद मिलती है।",
+          benefits: "Low premium crop insurance coverage",
+          benefitsHindi: "कम प्रीमियम पर व्यापक फसल बीमा सुरक्षा",
+          category: "Insurance",
+          categoryHindi: "फसल बीमा",
+          minLandAcres: 0.1,
+          maxLandAcres: 100,
+          eligibleCrops: ["Wheat", "Mustard", "Rice", "Bajra", "Soyabean", "Cotton", "Chana"],
+          url: "https://pmfby.gov.in/"
+        },
+        {
+          title: "Kisan Credit Card (KCC)",
+          titleHindi: "किसान क्रेडिट कार्ड (KCC)",
+          description: "Provides farmers with timely credit support to meet their cultivation and other general agricultural needs at highly subsidized interest rates (starting at 4% per annum).",
+          descriptionHindi: "किसानों को उनकी खेती और अन्य सामान्य कृषि आवश्यकताओं को पूरा करने के लिए अत्यधिक रियायती ब्याज दरों (4% प्रति वर्ष से शुरू) पर समय पर क्रेडिट सहायता प्रदान करता है।",
+          benefits: "Flexible loans at 4% subsidized interest rate",
+          benefitsHindi: "4% रियायती ब्याज दर पर लचीला कृषि ऋण",
+          category: "Financial",
+          categoryHindi: "वित्तीय सहायता",
+          minLandAcres: 0.2,
+          maxLandAcres: 250,
+          eligibleCrops: [],
+          url: "https://www.myscheme.gov.in/schemes/kcc"
+        },
+        {
+          title: "PM Krishi Sinchayee Yojana (PMKSY)",
+          titleHindi: "प्रधानमंत्री कृषि सिंचाई योजना",
+          description: "Focuses on 'Har Khet Ko Pani' (water to every field) and improving water use efficiency under 'More Crop Per Drop' by offering up to 55-80% subsidies on drip and sprinkler systems.",
+          descriptionHindi: "'हर खेत को पानी' और 'प्रति बूंद अधिक फसल' के तहत ड्रिप और स्प्रिंकलर सिस्टम पर 55-80% तक की सब्सिडी देकर पानी के उपयोग की दक्षता में सुधार करने पर ध्यान केंद्रित करता है।",
+          benefits: "55% to 80% subsidy on Drip & Sprinkler systems",
+          benefitsHindi: "ड्रिप और स्प्रिंकलर सिस्टम पर 55% से 80% तक की भारी सब्सिडी",
+          category: "Irrigation",
+          categoryHindi: "सिंचाई एवं जल",
+          minLandAcres: 0.5,
+          maxLandAcres: 12.5,
+          eligibleCrops: ["Wheat", "Mustard", "Tomato", "Potato", "Chilli", "Cotton"],
+          url: "https://pmksy.gov.in/"
+        },
+        {
+          title: "Subsidized Agriculture Machinery Scheme",
+          titleHindi: "कृषि यंत्रीकरण उप-मिशन (SMAM)",
+          description: "Promotes farm mechanization by offering 40% to 50% subsidies to small and marginal farmers for purchasing tractors, power tillers, rotavators, and other essential modern equipment.",
+          descriptionHindi: "ट्रैक्टर, पावर टिलर, रोटावेटर और अन्य आवश्यक आधुनिक उपकरण खरीदने के लिए छोटे और सीमांत किसानों को 40% से 50% सब्सिडी देकर कृषि यंत्रीकरण को बढ़ावा देता है।",
+          benefits: "40% to 50% subsidy on modern farm machinery",
+          benefitsHindi: "आधुनिक कृषि मशीनरी पर 40% से 50% तक की छूट",
+          category: "Machinery",
+          categoryHindi: "कृषि उपकरण",
+          minLandAcres: 1.0,
+          maxLandAcres: 25,
+          eligibleCrops: [],
+          url: "https://agrimachinery.nic.in/"
+        }
+      ];
+      await Scheme.insertMany(defaultSchemes);
+      console.log('✅ Default government schemes successfully seeded in MongoDB!');
+    } else {
+      console.log(`ℹ️ Schemes collection has ${count} existing records. Seeding skipped.`);
+    }
+  } catch (error) {
+    console.error('❌ Error seeding schemes:', error.message);
+  }
+}
+
 if (MONGODB_URI) {
   // We remove the <db_password> check or handle it in catch
   mongoose.connect(MONGODB_URI)
-    .then(() => console.log('🚀 Connected to MongoDB successfully!'))
+    .then(() => {
+      console.log('🚀 Connected to MongoDB successfully!');
+      seedSchemes();
+    })
     .catch(err => {
       console.error('❌ MongoDB connection error:');
       console.error(err.message);
@@ -1025,6 +1117,54 @@ app.put('/api/tasks/:id', async (req, res) => {
   } catch (error) {
     console.error('Error updating crop task:', error.message);
     res.status(500).json({ error: 'Internal Server Error while updating crop task: ' + error.message });
+  }
+});
+
+// GET Endpoint to fetch all active government schemes
+app.get('/api/schemes', async (req, res) => {
+  try {
+    const schemes = await Scheme.find().sort({ createdAt: 1 });
+    res.json(schemes);
+  } catch (error) {
+    console.error('Error fetching schemes:', error.message);
+    res.status(500).json({ error: 'Internal Server Error while fetching schemes: ' + error.message });
+  }
+});
+
+// POST Endpoint to register a new government scheme (for future admin capability)
+app.post('/api/schemes', async (req, res) => {
+  try {
+    const { title, titleHindi, description, descriptionHindi, benefits, benefitsHindi, category, categoryHindi, minLandAcres, maxLandAcres, eligibleCrops, url } = req.body;
+
+    if (!title || !titleHindi || !description || !descriptionHindi || !benefits || !benefitsHindi || !category || !categoryHindi || !url) {
+      return res.status(400).json({ error: 'All core fields are required' });
+    }
+
+    const newScheme = new Scheme({
+      title,
+      titleHindi,
+      description,
+      descriptionHindi,
+      benefits,
+      benefitsHindi,
+      category,
+      categoryHindi,
+      minLandAcres: minLandAcres ? Number(minLandAcres) : 0,
+      maxLandAcres: maxLandAcres ? Number(maxLandAcres) : 999,
+      eligibleCrops: eligibleCrops || [],
+      url
+    });
+
+    await newScheme.save();
+    console.log(`🌱 New Government Scheme added: ${title}`);
+    res.status(201).json({
+      success: true,
+      message: 'Government scheme added successfully!',
+      scheme: newScheme
+    });
+  } catch (error) {
+    console.error('Error adding scheme:', error.message);
+    res.status(500).json({ error: 'Internal Server Error while adding scheme: ' + error.message });
   }
 });
 
