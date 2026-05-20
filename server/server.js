@@ -9,6 +9,7 @@ import SupportTicket from './models/SupportTicket.js';
 import SosAlert from './models/SosAlert.js';
 import SoilHealth from './models/SoilHealth.js';
 import ScanHistory from './models/ScanHistory.js';
+import CropTask from './models/CropTask.js';
 
 // Load environment variables
 dotenv.config();
@@ -431,18 +432,82 @@ app.post('/api/crops', async (req, res) => {
     await newCrop.save();
     console.log(`🌾 New Crop saved: ${cropName} for farmer: ${farmerPhone}`);
 
+    // Predefined dynamic task calendars (120-Day timelines bilingually translated)
+    const cropTemplates = {
+      'Wheat': [
+        { dayNumber: 1, category: 'Irrigation', taskName: 'Sowing & Initial Irrigation', taskHindi: 'बुवाई और प्रारंभिक सिंचाई', description: 'Prepare soil bed and apply light pre-irrigation to ensure uniform germination.', descriptionHindi: 'मिट्टी तैयार करें और समान अंकुरण सुनिश्चित करने के लिए हल्की प्रारंभिक सिंचाई करें।' },
+        { dayNumber: 21, category: 'Irrigation', taskName: 'CRI Stage Irrigation & Urea', taskHindi: 'सीआरआई चरण सिंचाई और यूरिया', description: 'Irrigate at Crown Root Initiation (CRI) stage. Apply first dose of urea (@ 40kg/acre).', descriptionHindi: 'क्राउन रूट इनिशिएशन (CRI) चरण में सिंचाई करें। यूरिया की पहली खुराक (@ 40 किलोग्राम/एकड़) डालें।' },
+        { dayNumber: 45, category: 'Weeding', taskName: 'First Hand Weeding & Weeding', taskHindi: 'पहली निराई-गुड़ाई', description: 'Perform hand weeding to clear weeds. Apply light irrigation after weeding.', descriptionHindi: 'खरपतवार हटाने के लिए हाथ से निराई करें। निराई के बाद हल्की सिंचाई करें।' },
+        { dayNumber: 65, category: 'Pesticide', taskName: 'Preventive Neem Spray', taskHindi: 'सुरक्षात्मक नीम स्प्रे', description: 'Monitor for rust or aphids. Spray Neem oil (5ml/L) as a preventive measure.', descriptionHindi: 'रतुआ या चेपा की निगरानी करें। बचाव के रूप में नीम के तेल (5 मिली/लीटर) का छिड़काव करें।' },
+        { dayNumber: 85, category: 'Irrigation', taskName: 'Flowering Stage Irrigation', taskHindi: 'फूल आने पर सिंचाई', description: 'Critical moisture stage. Irrigate gently to support flower and head development.', descriptionHindi: 'अत्यंत महत्वपूर्ण नमी चरण। फूलों और बालियों के विकास के लिए धीरे-धीरे सिंचाई करें।' },
+        { dayNumber: 105, category: 'Irrigation', taskName: 'Milking Stage Irrigation', taskHindi: 'दूधिया चरण में सिंचाई', description: 'Ensure adequate soil moisture during grain filling to increase grain weight.', descriptionHindi: 'दाने का वजन बढ़ाने के लिए दाने भरने के दौरान पर्याप्त मिट्टी की नमी सुनिश्चित करें।' },
+        { dayNumber: 120, category: 'Harvesting', taskName: 'Harvesting & Threshing Prep', taskHindi: 'कटाई की तैयारी', description: 'Stop irrigation. Harvest when grains turn golden and moisture drops to 12%.', descriptionHindi: 'सिंचाई बंद करें। जब दाने सुनहरे हो जाएं और नमी 12% तक गिर जाए तो कटाई करें।' }
+      ],
+      'Mustard': [
+        { dayNumber: 1, category: 'Irrigation', taskName: 'Soil Prep & Sowing', taskHindi: 'मिट्टी की तैयारी और बुवाई', description: 'Sow seeds at 3-5 cm depth. Mix single super phosphate in the soil.', descriptionHindi: 'बीज 3-5 सेमी गहराई पर बोएं। मिट्टी में सिंगल सुपर फॉस्फेट मिलाएं।' },
+        { dayNumber: 25, category: 'Weeding', taskName: 'Thinning & First Irrigation', taskHindi: 'घने पौधे निकालना और पहली सिंचाई', description: 'Perform thinning to maintain plant distance. Irrigate 25 days after sowing.', descriptionHindi: 'पौधों की दूरी बनाए रखने के लिए छंटनी करें। बुवाई के 25 दिन बाद सिंचाई करें।' },
+        { dayNumber: 45, category: 'Fertilizer', taskName: 'Nitrogen Top-Dressing', taskHindi: 'यूरिया का शीर्ष छिड़काव', description: 'Apply second half of nitrogen (Urea @ 30kg/acre) after first weeding.', descriptionHindi: 'पहली निराई के बाद नाइट्रोजन की दूसरी छमाही (यूरिया @ 30 किलोग्राम/एकड़) डालें।' },
+        { dayNumber: 60, category: 'Pesticide', taskName: 'Aphid Control & Second Irrigation', taskHindi: 'चेपा नियंत्रण और दूसरी सिंचाई', description: 'Monitor for Aphids. Spray Dimethoate or organic neem oil if needed.', descriptionHindi: 'चेपा कीट की निगरानी करें। आवश्यकतानुसार डाइमेथोएट या जैविक नीम तेल छिड़कें।' },
+        { dayNumber: 80, category: 'Irrigation', taskName: 'Pod Filling Irrigation', taskHindi: 'फली भरने के समय सिंचाई', description: 'Irrigate during pod development stage to improve seed oil content.', descriptionHindi: 'बीज में तेल की मात्रा बढ़ाने के लिए फली विकास चरण के दौरान सिंचाई करें।' },
+        { dayNumber: 120, category: 'Harvesting', taskName: 'Harvesting & Threshing', taskHindi: 'कटाई और गहाई', description: 'Harvest when 75% of pods turn yellow. Dry in sun for 4-5 days before threshing.', descriptionHindi: 'जब 75% फलियां पीली हो जाएं तो कटाई करें। गहाई से पहले धूप में 4-5 दिन सुखाएं।' }
+      ]
+    };
+
+    let tasksToSave = [];
+    const hasTemplate = cropTemplates[cropName] ? true : false;
+
+    if (hasTemplate) {
+      tasksToSave = cropTemplates[cropName].map(task => ({
+        farmerPhone,
+        cropId: newCrop._id,
+        cropName,
+        taskName: task.taskName,
+        taskHindi: task.taskHindi,
+        description: task.description,
+        descriptionHindi: task.descriptionHindi,
+        dayNumber: task.dayNumber,
+        category: task.category,
+        completed: false
+      }));
+    } else {
+      // General default tasks list
+      const genericTemplate = [
+        { dayNumber: 1, category: 'Irrigation', taskName: 'Soil Prep & Sowing', taskHindi: 'मिट्टी की तैयारी और बुवाई', description: `Prepare soil bed and sow ${cropName} seeds under optimal conditions.`, descriptionHindi: `मिट्टी तैयार करें और अनुकूल परिस्थितियों में ${cropName} के बीज बोएं।` },
+        { dayNumber: 30, category: 'Weeding', taskName: 'First Weeding & Irrigation', taskHindi: 'पहली निराई और सिंचाई', description: 'Clear weeds to optimize nutrient intake. Apply light watering.', descriptionHindi: 'पोषक तत्वों के अवशोषण को बढ़ाने के लिए खरपतवार साफ करें। हल्की सिंचाई करें।' },
+        { dayNumber: 60, category: 'Fertilizer', taskName: 'NPK Nutrient Top-Dressing', taskHindi: 'पोषक तत्व पूरक', description: 'Apply balanced NPK fertilizer mixture for robust vegetative growth.', descriptionHindi: 'मजबूत वानस्पतिक वृद्धि के लिए संतुलित एनपीके उर्वरक मिश्रण डालें।' },
+        { dayNumber: 90, category: 'Pesticide', taskName: 'Pest Inspection & Neem Spray', taskHindi: 'कीट निरीक्षण और सुरक्षा', description: 'Monitor leaves for insect damage. Spray neem extract for crop protection.', descriptionHindi: 'पत्तियों के कीटों से नुकसान की निगरानी करें। फसल सुरक्षा के लिए नीम के अर्क का छिड़काव करें।' },
+        { dayNumber: 120, category: 'Harvesting', taskName: 'Harvesting & Packaging', taskHindi: 'कटाई और पैकेजिंग', description: `Harvest mature ${cropName} produce. Grade and pack carefully for the Mandi.`, descriptionHindi: `परिपक्व ${cropName} उपज की कटाई करें। मंडी के लिए सावधानीपूर्वक छांटें और पैक करें।` }
+      ];
+
+      tasksToSave = genericTemplate.map(task => ({
+        farmerPhone,
+        cropId: newCrop._id,
+        cropName,
+        taskName: task.taskName,
+        taskHindi: task.taskHindi,
+        description: task.description,
+        descriptionHindi: task.descriptionHindi,
+        dayNumber: task.dayNumber,
+        category: task.category,
+        completed: false
+      }));
+    }
+
+    await CropTask.insertMany(tasksToSave);
+    console.log(`📅 Generated and saved ${tasksToSave.length} care calendar tasks for crop: ${cropName} (ID: ${newCrop._id})`);
+
     res.status(201).json({
       success: true,
-      message: 'Crop added successfully!',
+      message: 'Crop and 120-day care tasks created successfully!',
       crop: newCrop
     });
   } catch (error) {
-    console.error('Error saving crop:', error.message);
-    res.status(500).json({ error: 'Internal Server Error while saving crop: ' + error.message });
+    console.error('Error saving crop & tasks:', error.message);
+    res.status(500).json({ error: 'Internal Server Error while saving crop and generating tasks: ' + error.message });
   }
 });
 
-// DELETE Endpoint to remove/harvest a Crop entry
+// DELETE Endpoint to remove/harvest a Crop entry and clean up associated tasks
 app.delete('/api/crops/:id', async (req, res) => {
   try {
     const { id } = req.params;
@@ -452,13 +517,16 @@ app.delete('/api/crops/:id', async (req, res) => {
       return res.status(404).json({ error: 'Crop entry not found' });
     }
 
-    console.log(`🗑️ Crop entry deleted: ${deletedCrop.cropName} (ID: ${id})`);
+    // Tidy up: Delete all tasks generated for this crop
+    const deleteTasksResult = await CropTask.deleteMany({ cropId: id });
+    console.log(`🗑️ Crop entry and ${deleteTasksResult.deletedCount} care tasks deleted for crop ID: ${id}`);
+
     res.json({
       success: true,
-      message: 'Crop entry harvested/removed successfully!'
+      message: 'Crop entry harvested and associated care tasks deleted successfully!'
     });
   } catch (error) {
-    console.error('Error deleting crop:', error.message);
+    console.error('Error deleting crop & tasks:', error.message);
     res.status(500).json({ error: 'Internal Server Error while deleting crop: ' + error.message });
   }
 });
@@ -907,6 +975,56 @@ app.get('/api/scan', async (req, res) => {
   } catch (error) {
     console.error('Error fetching scan history:', error.message);
     res.status(500).json({ error: 'Internal Server Error while fetching scan history: ' + error.message });
+  }
+});
+
+// GET Endpoint to retrieve crop care tasks for a specific crop entry
+app.get('/api/tasks', async (req, res) => {
+  try {
+    const { cropId } = req.query;
+    if (!cropId) {
+      return res.status(400).json({ error: 'cropId query parameter is required' });
+    }
+    const tasks = await CropTask.find({ cropId }).sort({ dayNumber: 1 });
+    res.json(tasks);
+  } catch (error) {
+    console.error('Error fetching crop tasks:', error.message);
+    res.status(500).json({ error: 'Internal Server Error while fetching crop tasks: ' + error.message });
+  }
+});
+
+// PUT Endpoint to toggle crop task completion
+app.put('/api/tasks/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { completed } = req.body;
+
+    if (completed === undefined) {
+      return res.status(400).json({ error: 'completed field (boolean) is required in request body' });
+    }
+
+    const updatedTask = await CropTask.findByIdAndUpdate(
+      id,
+      { 
+        completed,
+        completedAt: completed ? new Date() : null 
+      },
+      { new: true }
+    );
+
+    if (!updatedTask) {
+      return res.status(404).json({ error: 'Crop task not found' });
+    }
+
+    console.log(`✅ Crop Task completion updated: Task ID: ${id}, Completed: ${completed}`);
+    res.json({
+      success: true,
+      message: 'Crop task updated successfully!',
+      task: updatedTask
+    });
+  } catch (error) {
+    console.error('Error updating crop task:', error.message);
+    res.status(500).json({ error: 'Internal Server Error while updating crop task: ' + error.message });
   }
 });
 
