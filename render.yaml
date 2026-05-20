@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: krishimitra-ai
+    env: node
+    region: singapore
+    buildCommand: "cd server && npm install && cd ../user && npm install && npm run build"
+    startCommand: "node server/server.js"
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 5000
+      - key: MONGODB_URI
+        sync: false
+      - key: AI_API_KEY
+        sync: false
+      - key: GROK_API_KEY
+        sync: false
