@@ -2,9 +2,7 @@
 node_modules/
 **/node_modules/
 
-# Production builds
-dist/
-**/dist/
+# Production builds (user/dist is committed for deployment)
 dist-ssr/
 **/dist-ssr/
 
