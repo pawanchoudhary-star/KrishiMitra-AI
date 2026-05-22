@@ -855,6 +855,99 @@ Keep your response concise, clear, and extremely practical. Use bold headers and
   }
 });
 
+// POST Endpoint to translate text
+app.post('/api/translate', async (req, res) => {
+  try {
+    const { text, targetLang } = req.body;
+    if (!text || !targetLang) {
+      return res.status(400).json({ error: 'text and targetLang are required' });
+    }
+
+    const langNames = {
+      'hi': 'Hindi',
+      'pa': 'Punjabi',
+      'te': 'Telugu',
+      'ta': 'Tamil',
+      'bn': 'Bengali',
+      'mr': 'Marathi',
+      'gu': 'Gujarati',
+      'kn': 'Kannada'
+    };
+    const targetLangName = langNames[targetLang] || targetLang;
+
+    const systemPrompt = `You are a professional agricultural translator. Translate the following text into ${targetLangName}. 
+Maintain the exact original meaning, formatting, and any markdown elements.
+Text to translate:
+${text}`;
+
+    let translatedText = "";
+    const groqKey = process.env.GROK_API_KEY;
+    const geminiKey = process.env.AI_API_KEY;
+
+    const isGrokActive = groqKey && groqKey !== 'your_xai_grok_api_key_here' && groqKey.trim() !== '';
+    const isGeminiActive = geminiKey && geminiKey !== 'your_gemini_or_openai_api_key_here' && geminiKey.trim() !== '';
+
+    if (isGrokActive) {
+      try {
+        const gRes = await fetchWithTimeout("https://api.x.ai/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${groqKey}`
+          },
+          body: JSON.stringify({
+            messages: [{ role: "user", content: systemPrompt }],
+            model: "grok-2",
+            stream: false
+          }),
+          timeout: 6000
+        });
+
+        if (gRes.ok) {
+          const data = await gRes.json();
+          translatedText = data?.choices?.[0]?.message?.content || "";
+        }
+      } catch (err) {
+        console.warn("Grok timed out in translation:", err.message);
+      }
+    }
+
+    if (!translatedText && isGeminiActive) {
+      try {
+        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`;
+        const gRes = await fetchWithTimeout(geminiUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: systemPrompt }] }]
+          }),
+          timeout: 6000
+        });
+
+        if (gRes.ok) {
+          const data = await gRes.json();
+          translatedText = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+        }
+      } catch (err) {
+        console.warn("Gemini timed out in translation:", err.message);
+      }
+    }
+
+    if (!translatedText) {
+      console.warn("AI models not configured or failed. Returning original text.");
+      translatedText = "अनुवाद सेवा अभी उपलब्ध नहीं है। कृपया बाद में प्रयास करें।\n\n" + text;
+    }
+
+    res.status(200).json({
+      success: true,
+      translatedText
+    });
+  } catch (error) {
+    console.error('Error in translation:', error.message);
+    res.status(500).json({ error: 'Internal Server Error during translation: ' + error.message });
+  }
+});
+
 // POST Endpoint to analyze a crop leaf photo using Multimodal AI and save to MongoDB
 app.post('/api/scan', async (req, res) => {
   try {

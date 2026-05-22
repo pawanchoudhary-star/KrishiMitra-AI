@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ArrowLeft, Loader2, Sparkles, History, Droplet, Sun, Layers, Leaf, Calendar, Info, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Loader2, Sparkles, History, Droplet, Sun, Layers, Leaf, Calendar, Info, CheckCircle2, Globe } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import PageTransition from '../components/PageTransition';
 
@@ -13,6 +13,9 @@ export default function CropSuggest() {
   
   const [isGenerating, setIsGenerating] = useState(false);
   const [recommendation, setRecommendation] = useState('');
+  const [translated, setTranslated] = useState(''); // Holds translated text
+  const [isTranslating, setIsTranslating] = useState(false);
+  const [targetLang, setTargetLang] = useState('hi'); // default Hindi
   const [history, setHistory] = useState([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
@@ -57,6 +60,7 @@ export default function CropSuggest() {
       if (res.ok) {
         const data = await res.json();
         setRecommendation(data.recommendation);
+        setTranslated(''); // reset translation
         fetchHistory(); // Refresh history panel
       } else {
         alert('Failed to generate suggestions. Please ensure backend server is active.');
@@ -69,11 +73,30 @@ export default function CropSuggest() {
     }
   };
 
+  const handleTranslate = async (lang = targetLang) => {
+    setIsTranslating(true);
+    try {
+      const response = await fetch('http://localhost:5000/api/translate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: recommendation, targetLang: lang })
+      });
+      const data = await response.json();
+      setTranslated(data.translatedText);
+    } catch (err) {
+      console.error('Translation error:', err);
+      alert('Translation failed.');
+    } finally {
+      setIsTranslating(false);
+    }
+  };
+
   const loadPastRecommendation = (pastRec) => {
     setSoilType(pastRec.soilType);
     setWaterLevel(pastRec.waterLevel);
     setSeason(pastRec.season);
     setRecommendation(pastRec.recommendation);
+    setTranslated('');
     setShowHistory(false);
   };
 
@@ -244,10 +267,10 @@ export default function CropSuggest() {
           {isGenerating && (
             <div className="glass fade-in" style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--primary-green)' }}>
               <Loader2 className="animate-spin" size={48} style={{ margin: '0 auto 16px' }} />
-              <h3 className="text-h3" style={{ marginBottom: '8px' }}>Consulting KrishiMitra AI...</h3>
-              <p className="text-sm" style={{ color: 'var(--text-light)' }}>
-                Analyzing {soilType} Soil parameters and matching best crop returns...
-              </p>
+                <h3 className="text-h3" style={{ marginBottom: '8px' }}>Consulting KrishiMitra AI...</h3>
+                <p className="text-sm" style={{ color: 'var(--text-light)' }}>
+                  Analyzing {soilType} Soil parameters and matching best crop returns...
+                </p>
             </div>
           )}
 
@@ -282,7 +305,7 @@ export default function CropSuggest() {
                     whiteSpace: 'pre-wrap'
                   }}
                 >
-                  {recommendation}
+                  {translated || recommendation}
                 </div>
 
                 <div style={{ display: 'flex', gap: '12px', marginTop: '20px', borderTop: '1px solid var(--glass-border)', paddingTop: '16px' }}>
@@ -296,6 +319,54 @@ export default function CropSuggest() {
                   >
                     Configure Again
                   </button>
+                  <div style={{ flex: 1, position: 'relative', display: 'flex', alignItems: 'center' }}>
+                    <Globe size={18} style={{ color: 'white', position: 'absolute', left: '12px', pointerEvents: 'none', zIndex: 10 }} />
+                    <select
+                      value={translated ? targetLang : 'en'}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setTargetLang(val);
+                        if (val === 'en') {
+                          setTranslated('');
+                        } else {
+                          handleTranslate(val);
+                        }
+                      }}
+                      disabled={isTranslating}
+                      style={{
+                        width: '100%',
+                        padding: '12px 12px 12px 36px',
+                        borderRadius: '12px',
+                        border: 'none',
+                        background: 'var(--primary-green)',
+                        color: 'white',
+                        fontWeight: 'bold',
+                        cursor: 'pointer',
+                        fontSize: '14px',
+                        appearance: 'none',
+                        outline: 'none',
+                        textAlign: 'center',
+                        zIndex: 1
+                      }}
+                    >
+                      <option value="en" style={{ background: 'white', color: 'black' }}>Original (English)</option>
+                      <option value="hi" style={{ background: 'white', color: 'black' }}>Hindi (हिंदी)</option>
+                      <option value="pa" style={{ background: 'white', color: 'black' }}>Punjabi (ਪੰਜਾਬੀ)</option>
+                      <option value="te" style={{ background: 'white', color: 'black' }}>Telugu (తెలుగు)</option>
+                      <option value="ta" style={{ background: 'white', color: 'black' }}>Tamil (தமிழ்)</option>
+                      <option value="bn" style={{ background: 'white', color: 'black' }}>Bengali (বাংলা)</option>
+                      <option value="mr" style={{ background: 'white', color: 'black' }}>Marathi (मराठी)</option>
+                      <option value="gu" style={{ background: 'white', color: 'black' }}>Gujarati (ગુજરાતી)</option>
+                      <option value="kn" style={{ background: 'white', color: 'black' }}>Kannada (ಕನ್ನಡ)</option>
+                    </select>
+                    {isTranslating && (
+                      <Loader2 
+                        className="animate-spin" 
+                        size={16} 
+                        style={{ color: 'white', position: 'absolute', right: '12px', pointerEvents: 'none', zIndex: 10 }} 
+                      />
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
